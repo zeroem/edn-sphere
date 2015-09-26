@@ -1,0 +1,4 @@
+[package]
+name = "edn-sphere"
+version = "0.1.0"
+authors = ["Darrell Hamilton <darrell.noice@gmail.com>"]
