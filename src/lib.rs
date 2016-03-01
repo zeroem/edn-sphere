@@ -13,15 +13,53 @@ pub struct Parser<'a> {
     line: i64,
 }
 
-pub enum ElementParserResult {
-    Continue,
-    None,
-    Match(Token),
+trait TokenParser {
+    fn new() -> Self;
+    fn matches(&mut self, c: &char) -> bool;
+    fn get_token(&self) -> Option<Token>;
 }
 
-// impl ElementParser {
-//     fn matches(&self, c: &char) -> ElementParserResult
-// }
+pub struct NilTokenParser<'a> {
+    iter: Chars<'a>,
+    last_state: Option<bool>,
+}
+
+impl<'a> TokenParser for NilTokenParser<'a> {
+    fn new() -> NilTokenParser<'a> {
+        NilTokenParser {
+            iter: "nil".chars(),
+            last_state: None,
+        }
+    }
+
+    fn matches(&mut self, c: &char) -> bool {
+        let mut local_state: bool = false;
+
+        if let Some(ch) = self.iter.next() {
+            if *c == ch {
+                local_state = true;
+            }
+        }
+
+        if let Some(internal_state) = self.last_state {
+            self.last_state = Some(internal_state && local_state);
+        } else {
+            self.last_state = Some(local_state);
+        }
+
+        return self.last_state.unwrap();
+    }
+
+    fn get_token(&self) -> Option<Token> {
+        if let Some(s) = self.last_state {
+            if s {
+                return Some(Token::Nil);
+            }
+        }
+
+        return None;
+    }
+}
 
 impl<'a> Parser<'a> {
     fn new(source: &'a String) -> Parser<'a> {
@@ -45,23 +83,12 @@ impl<'a> Parser<'a> {
 
         ch_opt
     }
-
-    fn parse_nil(&mut self) -> Option<Token> {
-        if "nil".chars().all(|c| Some(c) == self.next_character()) {
-            Some(Token::Nil)
-        } else {
-            None
-        }
-    }
-
-    fn parse_whitespace(&mut self) -> Option<Token> {
-        
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::TokenParser;
 
     #[test]
     fn initialization_test() {
@@ -95,15 +122,16 @@ mod tests {
     }
     
     #[test]
-    fn parse_nil_test() {
-        let source = String::from("nil");
-        let mut p = Parser::new(&source);
+    fn nil_token_parser_test() {
+        let mut parser = NilTokenParser::new();
 
-        assert_eq!(Some(Token::Nil), p.parse_nil());
+        // Matches up to 'nil'
+        assert!(parser.matches(&'n'));
+        assert!(parser.matches(&'i'));
+        assert!(parser.matches(&'l'));
 
-        let source = String::from("not-nil");
-        let mut p = Parser::new(&source);
-
-        assert_eq!(None, p.parse_nil());
+        // Failes to match beyond 'nil'
+        assert!(!parser.matches(&'l'));
     }
 }
+
