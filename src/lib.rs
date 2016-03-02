@@ -65,6 +65,10 @@ impl<'a> TokenParser for KeywordTokenParser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    fn is_whitespace(ch: &char) -> bool {
+        ch.is_whitespace() || (*ch == ',')
+    }
+
     fn new(source: &'a String) -> Parser<'a> {
         Parser { 
             source: source,
@@ -139,6 +143,14 @@ mod tests {
         // Failes to match beyond 'nil'
         assert!(!parser.matches(&'l'));
         assert_eq!(None, parser.get_token());
+    }
+
+    #[test]
+    fn whitespace_test() {
+        assert!(Parser::is_whitespace(&' '));
+        assert!(Parser::is_whitespace(&'\t'));
+        assert!(Parser::is_whitespace(&','));
+        assert!(!Parser::is_whitespace(&'f'));
     }
 }
 
