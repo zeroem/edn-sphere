@@ -26,7 +26,7 @@ pub struct KeywordTokenParser<'a> {
 }
 
 impl<'a> KeywordTokenParser<'a> {
-    fn new(keyword: &'a String, result: Token) -> KeywordTokenParser<'a> {
+    fn new(keyword: &'a str, result: Token) -> KeywordTokenParser<'a> {
         KeywordTokenParser {
             iter: keyword.chars(),
             result: result,
@@ -93,14 +93,10 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_value(&mut self) {
-        let nil_string = &String::from("nil");
-        let true_string = &String::from("true");
-        let false_string = &String::from("false");
-
         let mut value_parsers = &vec!(
-            KeywordTokenParser::new(nil_string, Token::Nil),
-            KeywordTokenParser::new(true_string, Token::Boolean(true)),
-            KeywordTokenParser::new(false_string, Token::Boolean(false)),
+            KeywordTokenParser::new("nil", Token::Nil),
+            KeywordTokenParser::new("true", Token::Boolean(true)),
+            KeywordTokenParser::new("false", Token::Boolean(false)),
             );
 
         while let Some(ch) = self.next_character() {
@@ -149,8 +145,7 @@ mod tests {
     
     #[test]
     fn nil_token_parser_test() {
-        let nil_keyword = &String::from("nil");
-        let mut parser = KeywordTokenParser::new(nil_keyword, Token::Nil);
+        let mut parser = KeywordTokenParser::new("nil", Token::Nil);
 
         // Matches up to 'nil'
         assert!(parser.matches(&'n'));
