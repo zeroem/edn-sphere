@@ -4,6 +4,7 @@ use std::str::Chars;
 #[derive(PartialEq)]
 pub enum Token {
     Nil,
+    Boolean(bool),
 }
 
 pub struct Parser<'a> {
@@ -89,6 +90,24 @@ impl<'a> Parser<'a> {
         }
 
         ch_opt
+    }
+
+    pub fn parse_value(&mut self) {
+        let nil_string = &String::from("nil");
+        let true_string = &String::from("true");
+        let false_string = &String::from("false");
+
+        let mut value_parsers = &vec!(
+            KeywordTokenParser::new(nil_string, Token::Nil),
+            KeywordTokenParser::new(true_string, Token::Boolean(true)),
+            KeywordTokenParser::new(false_string, Token::Boolean(false)),
+            );
+
+        while let Some(ch) = self.next_character() {
+            for token_parser in value_parsers {
+
+            }
+        }
     }
 }
 
