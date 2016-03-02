@@ -14,24 +14,27 @@ pub struct Parser<'a> {
 }
 
 trait TokenParser {
-    fn new() -> Self;
     fn matches(&mut self, c: &char) -> bool;
     fn get_token(&self) -> Option<Token>;
 }
 
-pub struct NilTokenParser<'a> {
+pub struct KeywordTokenParser<'a> {
     iter: Chars<'a>,
+    result: Token,
     last_state: Option<bool>,
 }
 
-impl<'a> TokenParser for NilTokenParser<'a> {
-    fn new() -> NilTokenParser<'a> {
-        NilTokenParser {
-            iter: "nil".chars(),
+impl<'a> KeywordTokenParser<'a> {
+    fn new(keyword: &'a String, result: Token) -> KeywordTokenParser<'a> {
+        KeywordTokenParser {
+            iter: keyword.chars(),
+            result: result,
             last_state: None,
         }
     }
+}
 
+impl<'a> TokenParser for KeywordTokenParser<'a> {
     fn matches(&mut self, c: &char) -> bool {
         let mut local_state: bool = false;
 
@@ -123,15 +126,19 @@ mod tests {
     
     #[test]
     fn nil_token_parser_test() {
-        let mut parser = NilTokenParser::new();
+        let nil_keyword = &String::from("nil");
+        let mut parser = KeywordTokenParser::new(nil_keyword, Token::Nil);
 
         // Matches up to 'nil'
         assert!(parser.matches(&'n'));
         assert!(parser.matches(&'i'));
         assert!(parser.matches(&'l'));
 
+        assert_eq!(Some(Token::Nil), parser.get_token());
+
         // Failes to match beyond 'nil'
         assert!(!parser.matches(&'l'));
+        assert_eq!(None, parser.get_token());
     }
 }
 
