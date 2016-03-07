@@ -5,11 +5,13 @@ use std::str::Chars;
 pub enum Token {
     Nil,
     Boolean(bool),
+    Whitespace(Vec<char>),
 }
 
 pub struct Parser<'a> {
     source: &'a String,
     iterator: Chars<'a>,
+    current_character: Option<char>,
     character: i64,
     line: i64,
 }
@@ -19,11 +21,52 @@ trait TokenParser {
     fn get_token(&self) -> Option<Token>;
 }
 
+pub struct WhitespaceTokenParser {
+    source: Vec<char>,
+    last_state: Option<bool>,
+}
+
+impl TokenParser for WhitespaceTokenParser {
+    fn matches(&mut self, c: &char) -> bool {
+        let mut local_state: bool = false;
+
+        if Parser::is_whitespace(c) {
+            self.source.push(*c);
+            local_state = true;
+        }
+
+        if let Some(internal_state) = self.last_state {
+            self.last_state = Some(internal_state && local_state);
+        } else {
+            self.last_state = Some(local_state);
+        }
+
+        return self.last_state.unwrap();
+    }
+
+    fn get_token(&self) -> Option<Token> {
+        if let Some(state) = self.last_state {
+            if state {
+                return Some(Token::Whitespace(self.source.clone()));
+            }
+        }
+
+        return None;
+    }
+}
+
+impl WhitespaceTokenParser {
+    pub fn new() -> WhitespaceTokenParser {
+        WhitespaceTokenParser { source: Vec::new(), last_state: None }
+    }
+}
+
 pub struct KeywordTokenParser<'a> {
     iter: Chars<'a>,
     result: Token,
     last_state: Option<bool>,
 }
+
 
 impl<'a> KeywordTokenParser<'a> {
     fn new(keyword: &'a str, result: Token) -> KeywordTokenParser<'a> {
@@ -74,6 +117,7 @@ impl<'a> Parser<'a> {
         Parser { 
             source: source,
             iterator: source.chars(),
+            current_character: None,
             character: 0,
             line: 1
         }
@@ -83,7 +127,8 @@ impl<'a> Parser<'a> {
         let ch_opt = self.iterator.next();
 
         match ch_opt {
-            Some(_) => {
+            Some(c) => {
+                self.current_character = Some(c);
                 self.character+= 1;
             },
             _ => {}
@@ -92,18 +137,40 @@ impl<'a> Parser<'a> {
         ch_opt
     }
 
-    pub fn parse_value(&mut self) {
-        let mut value_parsers = &vec!(
-            KeywordTokenParser::new("nil", Token::Nil),
-            KeywordTokenParser::new("true", Token::Boolean(true)),
-            KeywordTokenParser::new("false", Token::Boolean(false)),
+    fn parse_whitespace(&mut self) -> Option<Token> {
+        let mut ws_parser = WhitespaceTokenParser::new();
+
+        while ws_parser.matches(&self.current_character.unwrap()) {
+            if let None = self.next_character() {
+                return ws_parser.get_token();
+            }
+        }
+
+        return ws_parser.get_token();
+    }
+
+    pub fn parse_value(&mut self) -> Option<Token> {
+        let nil_parser   = &mut Box::new(KeywordTokenParser::new("nil", Token::Nil));
+        let true_parser  = &mut Box::new(KeywordTokenParser::new("true", Token::Boolean(true)));
+        let false_parser = &mut Box::new(KeywordTokenParser::new("false", Token::Boolean(false)));
+
+        let value_parsers = &mut vec!(
+            nil_parser,
+            true_parser,
+            false_parser,
             );
 
         while let Some(ch) = self.next_character() {
-            for token_parser in value_parsers {
-
+            if ! Parser::is_whitespace(&ch) {
+                for p in value_parsers.iter_mut() {
+                    p.matches(&ch);
+                }
+            } else {
+                self.parse_whitespace();
             }
         }
+
+        None
     }
 }
 
@@ -142,7 +209,7 @@ mod tests {
         assert_eq!(None, ch_opt);
         assert_eq!(3, p.character);
     }
-    
+
     #[test]
     fn nil_token_parser_test() {
         let mut parser = KeywordTokenParser::new("nil", Token::Nil);
