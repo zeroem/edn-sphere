@@ -1,7 +1,6 @@
 use std::str::Chars;
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug,Clone,PartialEq)]
 pub enum Token {
     Nil,
     Boolean(bool),
@@ -100,7 +99,7 @@ impl<'a> TokenParser for KeywordTokenParser<'a> {
     fn get_token(&self) -> Option<Token> {
         if let Some(s) = self.last_state {
             if s {
-                return Some(Token::Nil);
+                return Some(self.result.clone());
             }
         }
 
@@ -166,11 +165,20 @@ impl<'a> Parser<'a> {
                     p.matches(&ch);
                 }
             } else {
-                self.parse_whitespace();
+                break;
             }
         }
 
-        None
+        let ws = self.parse_whitespace();
+        let tokens = value_parsers.iter().map(|p| p.get_token());
+
+        for t in tokens {
+            if let Some(_) = t {
+                return t;
+            }
+        }
+
+        return None;
     }
 }
 
@@ -232,6 +240,14 @@ mod tests {
         assert!(Parser::is_whitespace(&'\t'));
         assert!(Parser::is_whitespace(&','));
         assert!(!Parser::is_whitespace(&'f'));
+    }
+
+    #[test]
+    fn value_parser_test() {
+        assert_eq!(Some(Token::Nil), Parser::new(&String::from("nil")).parse_value());
+        assert_eq!(Some(Token::Boolean(true)), Parser::new(&String::from("true")).parse_value());
+        assert_eq!(Some(Token::Boolean(false)), Parser::new(&String::from("false")).parse_value());
+        assert_eq!(None, Parser::new(&String::from("alskdjflsajkfsldf")).parse_value());
     }
 }
 
