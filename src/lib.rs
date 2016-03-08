@@ -20,46 +20,6 @@ trait TokenParser {
     fn get_token(&self) -> Option<Token>;
 }
 
-pub struct WhitespaceTokenParser {
-    source: Vec<char>,
-    last_state: Option<bool>,
-}
-
-impl TokenParser for WhitespaceTokenParser {
-    fn matches(&mut self, c: &char) -> bool {
-        let mut local_state: bool = false;
-
-        if Parser::is_whitespace(c) {
-            self.source.push(*c);
-            local_state = true;
-        }
-
-        if let Some(internal_state) = self.last_state {
-            self.last_state = Some(internal_state && local_state);
-        } else {
-            self.last_state = Some(local_state);
-        }
-
-        return self.last_state.unwrap();
-    }
-
-    fn get_token(&self) -> Option<Token> {
-        if let Some(state) = self.last_state {
-            if state {
-                return Some(Token::Whitespace(self.source.clone()));
-            }
-        }
-
-        return None;
-    }
-}
-
-impl WhitespaceTokenParser {
-    pub fn new() -> WhitespaceTokenParser {
-        WhitespaceTokenParser { source: Vec::new(), last_state: None }
-    }
-}
-
 pub struct KeywordTokenParser<'a> {
     iter: Chars<'a>,
     result: Token,
@@ -127,25 +87,40 @@ impl<'a> Parser<'a> {
 
         match ch_opt {
             Some(c) => {
-                self.current_character = Some(c);
-                self.character+= 1;
+                self.character += 1;
             },
             _ => {}
         }
 
-        ch_opt
+        self.current_character = ch_opt;
+        self.current_character
+    }
+
+    fn current_character(&self) -> Option<char> {
+        self.current_character
     }
 
     fn parse_whitespace(&mut self) -> Option<Token> {
-        let mut ws_parser = WhitespaceTokenParser::new();
+        let mut ws: Vec<char> = vec!();
 
-        while ws_parser.matches(&self.current_character.unwrap()) {
-            if let None = self.next_character() {
-                return ws_parser.get_token();
+        while let Some(c) = self.current_character() {
+            if Parser::is_whitespace(&c) {
+                if c == '\n' {
+                    self.line += 1;
+                    self.character = 0;
+                }
+                ws.push(c);
+                self.next_character();
+            } else {
+                break;
             }
         }
 
-        return ws_parser.get_token();
+        if !ws.is_empty() {
+            Some(Token::Whitespace(ws))
+        } else {
+            None
+        }
     }
 
     pub fn parse_value(&mut self) -> Option<Token> {
@@ -240,6 +215,15 @@ mod tests {
         assert!(Parser::is_whitespace(&'\t'));
         assert!(Parser::is_whitespace(&','));
         assert!(!Parser::is_whitespace(&'f'));
+    }
+
+    #[test]
+    fn parse_whitespace_test() {
+        let s = " ";
+        let string = &String::from(s);
+        let mut p = Parser::new(string);
+        p.next_character();
+        assert_eq!(Some(Token::Whitespace(s.chars().collect())), p.parse_whitespace());
     }
 
     #[test]
