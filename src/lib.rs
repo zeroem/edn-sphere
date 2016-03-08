@@ -96,14 +96,10 @@ impl<'a> Parser<'a> {
         self.current_character
     }
 
-    fn current_character(&self) -> Option<char> {
-        self.current_character
-    }
-
     fn parse_whitespace(&mut self) -> Option<Token> {
         let mut ws: Vec<char> = vec!();
 
-        while let Some(c) = self.current_character() {
+        while let Some(c) = self.current_character {
             if Parser::is_whitespace(&c) {
                 if c == '\n' {
                     self.line += 1;
@@ -224,6 +220,14 @@ mod tests {
         let mut p = Parser::new(string);
         p.next_character();
         assert_eq!(Some(Token::Whitespace(s.chars().collect())), p.parse_whitespace());
+
+        let s = " \n ";
+        let string = &String::from(s);
+        let mut p = Parser::new(string);
+        p.next_character();
+        assert_eq!(Some(Token::Whitespace(s.chars().collect())), p.parse_whitespace());
+        assert_eq!(2, p.line);
+        assert_eq!(1, p.character);
     }
 
     #[test]
