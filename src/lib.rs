@@ -5,6 +5,7 @@ pub enum Token {
     Nil,
     Boolean(bool),
     Whitespace(Vec<char>),
+    Symbol(Vec<char>),
 }
 
 pub struct Parser<'a> {
@@ -67,6 +68,62 @@ impl<'a> TokenParser for KeywordTokenParser<'a> {
     }
 }
 
+pub struct SymbolParser {
+    result: Vec<char>,
+    last_state: Option<bool>,
+}
+
+impl SymbolParser {
+    pub fn new() -> SymbolParser {
+        SymbolParser { result: vec!(), last_state: None }
+    }
+
+    pub fn needs_alphabetic(&self) -> bool {
+        if ! self.result.is_empty() {
+            return (vec!('+', '-', '.').contains(self.result.first().unwrap()) && self.result.len() == 1) || *self.result.last().unwrap() == '/';
+        }
+
+        return true;
+    }
+
+    pub fn is_character_allowed(&self, c: &char) -> bool {
+        if ! self.needs_alphabetic() {
+            c.is_alphanumeric() || vec!('.', '*', '+', '!', '-', '_', '?', '$', '%', '&', '=', '<', '>', '#', ':', '/').contains(c)
+        } else {
+            c.is_alphabetic()
+        }
+    }
+}
+
+impl TokenParser for SymbolParser {
+    fn matches(&mut self, c: &char) -> bool {
+        let mut local_state = false;
+
+        if self.is_character_allowed(c) {
+            self.result.push(*c);
+            local_state = true;
+        }
+
+        if let Some(internal_state) = self.last_state {
+            self.last_state = Some(internal_state && local_state);
+        } else {
+            self.last_state = Some(local_state);
+        }
+
+        return self.last_state.unwrap();
+    }
+
+    fn get_token(&self) -> Option<Token> {
+        if let Some(valid) = self.last_state {
+            if valid && (*self.result.last().unwrap() != '/') {
+                return Some(Token::Symbol(self.result.clone()));
+            }
+        }
+
+        return None;
+    }
+}
+
 impl<'a> Parser<'a> {
     fn is_whitespace(ch: &char) -> bool {
         ch.is_whitespace() || (*ch == ',')
@@ -86,7 +143,7 @@ impl<'a> Parser<'a> {
         let ch_opt = self.iterator.next();
 
         match ch_opt {
-            Some(c) => {
+            Some(_) => {
                 self.character += 1;
             },
             _ => {}
@@ -123,6 +180,7 @@ impl<'a> Parser<'a> {
         let nil_parser   = &mut Box::new(KeywordTokenParser::new("nil", Token::Nil));
         let true_parser  = &mut Box::new(KeywordTokenParser::new("true", Token::Boolean(true)));
         let false_parser = &mut Box::new(KeywordTokenParser::new("false", Token::Boolean(false)));
+        let symbol_parser = &mut Box::new(SymbolParser::new());
 
         let value_parsers = &mut vec!(
             nil_parser,
