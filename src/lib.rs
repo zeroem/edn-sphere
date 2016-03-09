@@ -78,19 +78,23 @@ impl SymbolParser {
         SymbolParser { result: vec!(), last_state: None }
     }
 
-    pub fn needs_alphabetic(&self) -> bool {
-        if ! self.result.is_empty() {
-            return (vec!('+', '-', '.').contains(self.result.first().unwrap()) && self.result.len() == 1) || *self.result.last().unwrap() == '/';
-        }
-
-        return true;
-    }
-
     pub fn is_character_allowed(&self, c: &char) -> bool {
-        if ! self.needs_alphabetic() {
-            c.is_alphanumeric() || vec!('.', '*', '+', '!', '-', '_', '?', '$', '%', '&', '=', '<', '>', '#', ':', '/').contains(c)
+        let first_special_chars = vec!('+', '-', '.');
+        let special_chars = vec!('.', '*', '+', '!', '-', '_', '?', '$', '%', '&', '=', '<', '>', '/');
+        let extra_special_chars = vec!('#', ':');
+
+        if self.result.is_empty() {
+            c.is_alphabetic() || special_chars.contains(c)
         } else {
-            c.is_alphabetic()
+            if *self.result.first().unwrap() == '/' {
+                false
+            } else if (self.result.len() == 1) && first_special_chars.contains(self.result.first().unwrap()) {
+                c.is_alphabetic() || special_chars.contains(c) || extra_special_chars.contains(c)
+            } else if *self.result.last().unwrap() == '/' {
+                c.is_alphabetic() || special_chars.contains(c)
+            } else {
+                c.is_alphanumeric() || special_chars.contains(c) || extra_special_chars.contains(c)
+            }
         }
     }
 }
@@ -177,16 +181,17 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_value(&mut self) -> Option<Token> {
-        let nil_parser   = &mut Box::new(KeywordTokenParser::new("nil", Token::Nil));
-        let true_parser  = &mut Box::new(KeywordTokenParser::new("true", Token::Boolean(true)));
-        let false_parser = &mut Box::new(KeywordTokenParser::new("false", Token::Boolean(false)));
-        let symbol_parser = &mut Box::new(SymbolParser::new());
+        let mut nil_parser  = KeywordTokenParser::new("nil", Token::Nil);
+        let mut true_parser = KeywordTokenParser::new("true", Token::Boolean(true));
+        let mut false_parser = KeywordTokenParser::new("false", Token::Boolean(false));
+        let mut symbol_parser = SymbolParser::new();
 
-        let value_parsers = &mut vec!(
-            nil_parser,
-            true_parser,
-            false_parser,
-            );
+        let mut value_parsers = vec![
+            &mut nil_parser as &mut TokenParser,
+            &mut true_parser,
+            &mut false_parser,
+            &mut symbol_parser,
+            ];
 
         while let Some(ch) = self.next_character() {
             if ! Parser::is_whitespace(&ch) {
@@ -293,7 +298,18 @@ mod tests {
         assert_eq!(Some(Token::Nil), Parser::new(&String::from("nil")).parse_value());
         assert_eq!(Some(Token::Boolean(true)), Parser::new(&String::from("true")).parse_value());
         assert_eq!(Some(Token::Boolean(false)), Parser::new(&String::from("false")).parse_value());
-        assert_eq!(None, Parser::new(&String::from("alskdjflsajkfsldf")).parse_value());
+
+        let s = "alskdjflsajkfsldf";
+        assert_eq!(Some(Token::Symbol(s.chars().collect())), Parser::new(&String::from(s)).parse_value());
+
+        let s = "+123";
+        assert_eq!(None, Parser::new(&String::from(s)).parse_value());
+
+        let s = "f123/123";
+        assert_eq!(None, Parser::new(&String::from(s)).parse_value());
+
+        let s = "+#:123/#";
+        assert_eq!(None, Parser::new(&String::from(s)).parse_value());
     }
 }
 
