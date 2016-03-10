@@ -6,6 +6,7 @@ pub enum Token {
     Boolean(bool),
     Whitespace(Vec<char>),
     Symbol(Vec<char>),
+    String(Vec<char>),
 }
 
 pub struct Parser<'a> {
@@ -68,6 +69,65 @@ impl<'a> TokenParser for KeywordTokenParser<'a> {
     }
 }
 
+pub struct StringParser {
+    last_state: Option<bool>,
+    terminated: bool,
+    escaped: bool,
+    result: Vec<char>,
+}
+
+impl StringParser {
+    pub fn new() -> StringParser {
+        StringParser { escaped: false, terminated: false, last_state: None, result: vec!() }
+    }
+}
+
+impl TokenParser for StringParser {
+    fn get_token(&self) -> Option<Token> {
+        if let Some(s) = self.last_state {
+            if s {
+                return Some(Token::String(self.result.clone()));
+            }
+        }
+
+        return None;
+    }
+
+    fn matches(&mut self, c: &char) -> bool {
+        let mut local_state = false;
+
+        if ! self.terminated {
+            if self.result.is_empty() {
+                if *c == '"' {
+                    self.result.push(*c);
+                    local_state = true;
+                }
+            } else {
+                self.result.push(*c);
+                local_state = true;
+
+                if *c == '"' {
+                    if ! self.escaped {
+                        self.terminated = true;
+                    } else {
+                        self.escaped = false;
+                    }
+                } else if *c == '\\' {
+                    self.escaped = ! self.escaped;
+                }
+            }
+        }
+
+        if let Some(internal_state) = self.last_state {
+            self.last_state = Some(internal_state && local_state);
+        } else {
+            self.last_state = Some(local_state);
+        }
+
+        return self.last_state.unwrap();
+    }
+}
+
 pub struct SymbolParser {
     result: Vec<char>,
     last_state: Option<bool>,
@@ -98,6 +158,7 @@ impl SymbolParser {
         }
     }
 }
+
 
 impl TokenParser for SymbolParser {
     fn matches(&mut self, c: &char) -> bool {
@@ -185,12 +246,14 @@ impl<'a> Parser<'a> {
         let mut true_parser = KeywordTokenParser::new("true", Token::Boolean(true));
         let mut false_parser = KeywordTokenParser::new("false", Token::Boolean(false));
         let mut symbol_parser = SymbolParser::new();
+        let mut string_parser = StringParser::new();
 
         let mut value_parsers = vec![
             &mut nil_parser as &mut TokenParser,
             &mut true_parser,
             &mut false_parser,
             &mut symbol_parser,
+            &mut string_parser,
             ];
 
         while let Some(ch) = self.next_character() {
@@ -309,6 +372,15 @@ mod tests {
         assert_eq!(None, Parser::new(&String::from(s)).parse_value());
 
         let s = "+#:123/#";
+        assert_eq!(None, Parser::new(&String::from(s)).parse_value());
+
+        let s = "\"Foobar\"";
+        assert_eq!(Some(Token::String(s.chars().collect())), Parser::new(&String::from(s)).parse_value());
+
+        let s = "\"Foo\\\"bar\"";
+        assert_eq!(Some(Token::String(s.chars().collect())), Parser::new(&String::from(s)).parse_value());
+
+        let s = "\"Foo\"bar\"";
         assert_eq!(None, Parser::new(&String::from(s)).parse_value());
     }
 }
