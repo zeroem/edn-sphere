@@ -7,6 +7,7 @@ pub enum Token {
     Whitespace(Vec<char>),
     Symbol(Vec<char>),
     String(Vec<char>),
+    Discard(Vec<char>),
 }
 
 pub struct Parser<'a> {
@@ -125,6 +126,43 @@ impl TokenParser for StringParser {
         }
 
         return self.last_state.unwrap();
+    }
+}
+
+pub struct DiscardParser {
+    token: Vec<char>,
+    result: Vec<char>,
+    last_state: Option<bool>,
+}
+
+impl DiscardParser {
+    pub fn new() -> DiscardParser {
+        DiscardParser { result: vec!(), last_state: None, token: "#_".chars().collect() }
+    }
+}
+
+impl TokenParser for DiscardParser {
+    fn matches(&mut self, c: &char) -> bool {
+        if (self.last_state == None) || (self.last_state == Some(true)) {
+            if ((self.result.len() == 0) && (*c == self.token[0]))  || // first char tested is a '#'
+                ((self.result.len() == 1) && (*c == self.token[1])) || // second char tested is a '_'
+                    (self.result.len() > 1) { // we've passed the first two checks
+                    self.result.push(*c);
+                    self.last_state = Some(true);
+                    return true;
+                }
+        }
+
+        self.last_state = Some(false);
+        return false;
+    }
+
+    fn get_token(&self) -> Option<Token>{
+        if Some(true) == self.last_state {
+            Some(Token::Discard(self.result.clone()))
+        } else {
+            None
+        }
     }
 }
 
@@ -247,6 +285,7 @@ impl<'a> Parser<'a> {
         let mut false_parser = KeywordTokenParser::new("false", Token::Boolean(false));
         let mut symbol_parser = SymbolParser::new();
         let mut string_parser = StringParser::new();
+        let mut discard_parser = DiscardParser::new();
 
         let mut value_parsers = vec![
             &mut nil_parser as &mut TokenParser,
@@ -254,6 +293,7 @@ impl<'a> Parser<'a> {
             &mut false_parser,
             &mut symbol_parser,
             &mut string_parser,
+            &mut discard_parser,
             ];
 
         while let Some(ch) = self.next_character() {
@@ -382,6 +422,9 @@ mod tests {
 
         let s = "\"Foo\"bar\"";
         assert_eq!(None, Parser::new(&String::from(s)).parse_value());
+
+        let s = "#_+123";
+        assert_eq!(Some(Token::Discard(s.chars().collect())), Parser::new(&String::from(s)).parse_value());
     }
 }
 
